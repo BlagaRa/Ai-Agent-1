@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Gemini Voice Chat</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        html, body {
+            min-height: 100vh;
+            margin: 0;
+            padding: 0;
+            height: 100%;
+        }
+        body {
+            background: #111;
+            height: 100vh;
+            margin: 0;
+            /* Flexbox for perfect centering */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        #container {
+            background: rgba(30,30,30,0.98);
+            border-radius: 24px;
+            box-shadow: 0 0 48px 8px #222b, 0 2px 8px #1118;
+            padding: 38px 40px 30px 40px;
+            width: 430px;
+            min-width: 320px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            z-index: 2;
+        }
+        /* Pulsating life core ("AI heart") */
+        #life-pulse {
+            width: 72px;
+            height: 72px;
+            border-radius: 50%;
+            background: radial-gradient(circle at 38% 38%, #21d4fd 60%, #b721ff 110%);
+            box-shadow:
+                0 0 32px 18px #1ff4,
+                0 0 72px 20px #b721ff22;
+            animation: pulse 2s infinite alternate;
+            margin-bottom: 30px;
+            margin-top: 5px;
+        }
+        @keyframes pulse {
+            0% {
+                transform: scale(1);
+                box-shadow: 0 0 32px 16px #1ff4, 0 0 64px 12px #b721ff11;
+                opacity: 1;
+            }
+            70% {
+                transform: scale(1.15);
+                box-shadow: 0 0 48px 28px #21d4fd99, 0 0 80px 24px #b721ff22;
+                opacity: 0.90;
+            }
+            100% {
+                transform: scale(1.01);
+                box-shadow: 0 0 22px 10px #1ff4, 0 0 60px 11px #b721ff13;
+                opacity: 1;
+            }
+        }
+        h2 {
+            color: #eee;
+            font-weight: 700;
+            margin: 0 0 26px 0;
+            letter-spacing: 1px;
+            font-size: 1.35rem;
+            text-align: center;
+            text-shadow: 0 2px 14px #1340aa65;
+        }
+        label { color: #ccc; }
+        input, button {
+            outline: none;
+        }
+        #controls {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+            gap: 10px;
+            justify-content: center;
+        }
+        #textInput {
+            flex: 1 1 120px;
+            border-radius: 8px;
+            border: none;
+            padding: 11px 12px;
+            background: #18181a;
+            color: #eee;
+            font-size: 1rem;
+            box-shadow: 0 0 5px #2228;
+            margin-right: 2px;
+            margin-left: 2px;
+        }
+        #sendBtn, #recordBtn {
+            padding: 10px 15px;
+            background: linear-gradient(93deg,#21d4fd 0%,#b721ff 100%);
+            color: #fff;
+            border: none;
+            border-radius: 7px;
+            font-size: 1.02rem;
+            font-weight: bold;
+            cursor: pointer;
+            margin-left: 0;
+            margin-right: 0;
+            box-shadow: 0 2px 14px #b721ff29;
+            transition: background 0.2s, transform 0.15s;
+        }
+        #sendBtn:active, #recordBtn:active {
+            transform: scale(0.97);
+            background: linear-gradient(93deg,#32fde1 0%,#c321ff 100%);
+        }
+        #status {
+            color: #1bc2ff;
+            font-size: 1.01rem;
+            margin-top: 10px;
+            letter-spacing: 0.03em;
+            min-height: 30px;
+            display: block;
+            text-align: center;
+        }
+        #reply {
+            padding: 18px 14px 11px 14px;
+            min-height: 50px;
+            background: #181821;
+            border-radius: 12px;
+            margin: 20px 0 7px 0;
+            color: #ddf;
+            font-size: 1.10rem;
+            box-shadow: 0 2px 14px #3384cc17;
+        }
+        #audioReply {
+            margin-top: 10px;
+            width: 100%;
+            background: #222;
+            border-radius: 7px;
+            box-shadow: 0 1px 8px #1e7af926;
+        }
+
+        /* Slight scrollbar design for webkit browsers */
+        ::-webkit-scrollbar { width: 8px; background: #191919; }
+        ::-webkit-scrollbar-thumb { background: #363654; border-radius: 5px; }
+        /* Glow for record button during recording */
+        #recordBtn.listening {
+            background: linear-gradient(93deg, #ff2e63 0%, #21d4fd 100%);
+            box-shadow: 0 0 18px 2px #ff1b9261, 0 2px 14px #21d4fd32;
+            color: #fff;
+            animation: record-glow 0.75s infinite alternate;
+        }
+        @keyframes record-glow {
+            0% { box-shadow: 0 0 8px 3px #ff3e6392; }
+            100% { box-shadow: 0 0 16px 8px #ff2e6382; }
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <div id="life-pulse"></div>
+        <h2>Talk to Gemini</h2>
+        <form id="askForm" onsubmit="event.preventDefault(); sendTyped();">
+            <div id="controls">
+                <input id="textInput" autocomplete="off" placeholder="Type your message..." />
+                <button type="button" id="sendBtn" title="Send text">➡️</button>
+                <button type="button" id="recordBtn" title="Talk to Gemini">🎙️</button>
+            </div>
+        </form>
+        <span id="status"></span>
+        <div id="reply" style="display:none"></div>
+        <audio id="audioReply" controls style="display:none"></audio>
+    </div>
+    <script>
+        let recording = false;
+        let mediaRecorder, audioChunks;
+        const recordBtn = document.getElementById('recordBtn');
+        const sendBtn = document.getElementById('sendBtn');
+        const statusEl = document.getElementById('status');
+        const replyEl = document.getElementById('reply');
+        const textInput = document.getElementById('textInput');
+        const audioReply = document.getElementById('audioReply');
+        const lifePulse = document.getElementById('life-pulse');
+
+        // Status visuals
+        function setPhase(phase) {
+            // 0: idle, 1: listening, 2: transcribing, 3: thinking, 4: synthesizing
+            if (phase === "listening") {
+                recordBtn.classList.add("listening");
+                statusEl.textContent = "Listening…";
+                lifePulse.style.animationDuration="0.9s";
+            } else if (phase === "uploading") {
+                recordBtn.classList.remove("listening");
+                statusEl.textContent = "Transcribing…";
+                lifePulse.style.animationDuration="0.55s";
+            } else if (phase === "thinking") {
+                statusEl.textContent = "Gemini is thinking…";
+                lifePulse.style.animationDuration="1.15s";
+            } else if (phase === "speaking") {
+                statusEl.textContent = "Synthesizing voice…";
+                lifePulse.style.animationDuration="1.5s";
+            } else {
+                recordBtn.classList.remove("listening");
+                statusEl.textContent = "";
+                lifePulse.style.animationDuration="2s";
+            }
+        }
+
+        // Recording logic
+        recordBtn.onclick = async function() {
+            if (!recording) {
+                // Start recording
+                audioChunks = [];
+                let stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream);
+                mediaRecorder.start();
+                recording = true;
+                setPhase("listening");
+                recordBtn.textContent = "⏹️";
+                mediaRecorder.ondataavailable = e => {
+                    audioChunks.push(e.data);
+                };
+                mediaRecorder.onstop = uploadAudio;
+            } else {
+                // Stop recording
+                recording = false;
+                mediaRecorder.stop();
+                setPhase("uploading");
+                recordBtn.textContent = "🎙️";
+            }
+        };
+
+        const uploadAudio = async () => {
+            setPhase("uploading");
+            let blob = new Blob(audioChunks, {type: 'audio/wav'});
+            let formData = new FormData();
+            formData.append('audio', blob, 'user.wav');
+            replyEl.style.display = "none";
+            audioReply.style.display = "none";
+            replyEl.textContent = "";
+            let res = await fetch('/chat', { method: 'POST', body: formData });
+            setPhase('thinking');
+            let data = await res.json();
+            setReply(data);
+        };
+
+        sendBtn.onclick = sendTyped;
+        textInput.addEventListener("keydown", function(evt) {
+            if(evt.key === "Enter"){
+                evt.preventDefault();
+                sendTyped();
+            }
+        });
+
+        async function sendTyped() {
+            let txt = textInput.value.trim();
+            if (!txt) return;
+            setPhase('thinking');
+            replyEl.style.display = "none";
+            audioReply.style.display = "none";
+            replyEl.textContent = "";
+            let res = await fetch('/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text: txt })
+            });
+            let data = await res.json();
+            setReply(data);
+        }
+
+        function setReply(data) {
+            setPhase('speaking');
+            if (!data.reply) {
+                replyEl.style.display = "block";
+                replyEl.textContent = "Error: " + (data.error || "Unknown.");
+                lifePulse.style.animationDuration="2.7s";
+                statusEl.textContent = "";
+                return;
+            }
+            replyEl.style.display = "block";
+            replyEl.textContent = "Gemini: " + data.reply;
+            if (data.audio_url) {
+                audioReply.src = data.audio_url;
+                audioReply.style.display = "block";
+                audioReply.play();
+            } else {
+                audioReply.style.display = "none";
+            }
+            setTimeout(()=>setPhase("idle"), 2500);
+        }
+    </script>
+</body>
+</html>
